@@ -26,9 +26,6 @@ app.use(express.json());
 const CONFIG_FILE = "./config.json";
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-// =====================================================
-// 2. RUTAS DE LA API (Alta Rápida Z004)
-// =====================================================
 function iniciarServidor(pool) {
   
   // NUEVO: Búsqueda general (coincidencias parciales por nombre o código)
@@ -118,7 +115,7 @@ function iniciarServidor(pool) {
 }
 
 // =====================================================
-// 3. GESTIÓN DE RED Y CONFIGURACIÓN
+//          GESTIÓN DE RED Y CONFIGURACIÓN
 // =====================================================
 function obtenerIPLocal() {
   const interfaces = os.networkInterfaces();
@@ -144,8 +141,8 @@ async function probarYGuardar(config) {
 
 function pedirDatos() {
   console.log("\n--- CONFIGURACIÓN SQL ---");
-  console.log("1. Automática (sa / 12345678)");
-  console.log("2. Manual");
+  console.log("1. Automática (intenta conectar a la IP local)");
+  console.log("2. Manual (ingresar IP, puerto, base de datos, usuario y contraseña)");
   rl.question("Opción: ", (op) => {
     if (op === "1") {
       probarYGuardar({
@@ -155,7 +152,7 @@ function pedirDatos() {
       });
     } else {
       rl.question("IP Servidor: ", (h) => {
-        rl.question("Clave sa: ", (p) => {
+        rl.question("Clave: ", (p) => {
           probarYGuardar({
             user: "sa", password: p, server: h,
             database: "MyBusiness20", port: 53100,
