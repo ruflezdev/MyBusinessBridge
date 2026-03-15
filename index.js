@@ -27,11 +27,34 @@ const CONFIG_FILE = "./config.json";
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 // =====================================================
-// 2. RUTAS DE LA API (Alta Rápida Simplificada)
+// 2. RUTAS DE LA API (Alta Rápida Z004)
 // =====================================================
 function iniciarServidor(pool) {
   
-  // CONSULTAR: Busca por Código de Barras
+  // NUEVO: Búsqueda general (coincidencias parciales por nombre o código)
+  app.get("/productos/buscar", async (req, res) => {
+    const busqueda = req.query.q;
+    try {
+      const result = await pool.request()
+        .input("q", sql.VarChar, `%${busqueda}%`)
+        .query(`
+          SELECT TOP 30
+                 articulo AS CodigoBarras, 
+                 descrip AS Producto, 
+                 precio1 AS PrecioPublico, 
+                 existencia AS Existencias
+          FROM prods 
+          WHERE articulo LIKE @q OR descrip LIKE @q
+          ORDER BY descrip ASC
+        `);
+      
+      res.json(result.recordset);
+    } catch (err) { 
+      res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  // CONSULTAR: Busca por Código de Barras exacto
   app.get("/producto/:id", async (req, res) => {
     try {
       const result = await pool.request()
@@ -55,7 +78,7 @@ function iniciarServidor(pool) {
     }
   });
 
-  // GUARDAR: Alta o Actualización (IVA siempre SYS, Costo siempre 0)
+  // GUARDAR: Alta o Actualización
   app.post("/producto/actualizar", async (req, res) => {
     const { CodigoBarras, Producto, PrecioPublico, Existencias } = req.body;
 
@@ -66,11 +89,9 @@ function iniciarServidor(pool) {
 
       let query;
       if (exists.recordset.length > 0) {
-        // ACTUALIZAR (Modificación)
         query = `UPDATE prods SET descrip=@d, precio1=@p, costo_u=0, 
                  impuesto='SYS', existencia=@e WHERE articulo=@c`;
       } else {
-        // ALTA NUEVA
         query = `INSERT INTO prods (articulo, descrip, precio1, costo_u, impuesto, 
                  existencia, linea, marca, unidad, paraventa, invent) 
                  VALUES (@c, @d, @p, 0, 'SYS', @e, 'SYS', 'SYS', 'PZA', 1, 1)`;
@@ -83,7 +104,7 @@ function iniciarServidor(pool) {
         .input("e", sql.Float, Existencias || 0)
         .query(query);
 
-      console.log(`✅ Registro exitoso: ${CodigoBarras}`);
+      console.log(`✅ Registro exitoso: ${CodigoBarras} - ${Producto}`);
       res.send("OK");
     } catch (err) { 
       res.status(500).json({ error: err.message }); 
@@ -91,13 +112,13 @@ function iniciarServidor(pool) {
   });
 
   app.listen(3000, "0.0.0.0", () => {
-    console.log(`\n🚀 API LISTA`);
-    console.log(`IP de red: http://${obtenerIPLocal()}:3000`);
+    console.log(`\n🚀 API ALTA RÁPIDA Z004 LISTA`);
+    console.log(`IP de red para la App: http://${obtenerIPLocal()}:3000`);
   });
 }
 
 // =====================================================
-// 3. GESTIÓN DE RED Y CONFIGURACIÓN (sa/12345678)
+// 3. GESTIÓN DE RED Y CONFIGURACIÓN
 // =====================================================
 function obtenerIPLocal() {
   const interfaces = os.networkInterfaces();
