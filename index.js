@@ -121,10 +121,12 @@ async function probarYGuardar(config) {
 }
 
 function iniciarServidor(pool) {
+
+    // 1. LISTAR TODOS (READ)
     app.get('/productos', async (req, res) => {
         try {
             const result = await pool.request().query(`
-                SELECT articulo AS Codigo, descrip AS Descripcion, existencia AS Stock, precio1 AS Precio
+                SELECT articulo AS Articulo, descrip AS Descripcion, existencia AS Stock, precio1 AS Precio
                 FROM prods ORDER BY descrip
             `);
             console.log(`📦 INFO: Enviados ${result.recordset.length} productos.`);
@@ -134,6 +136,60 @@ function iniciarServidor(pool) {
         }
     });
 
+    // 2. BUSCAR POR CÓDIGO (READ ONE)
+    app.get('/producto/:id', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const result = await pool.request()
+                .input('codigo', sql.VarChar, id)
+                .query(`
+                    SELECT articulo AS Articulo, descrip AS Descripcion, existencia AS Stock, precio1 AS Precio 
+                    FROM prods WHERE articulo = @codigo
+                `);
+            
+            if (result.recordset.length > 0) {
+                res.json(result.recordset[0]);
+            } else {
+                res.status(404).send("No encontrado");
+            }
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // 3. ACTUALIZAR O INSERTAR (CREATE / UPDATE)
+    app.post('/producto/actualizar', async (req, res) => {
+        const { Articulo, Descripcion, Stock, Precio } = req.body;
+        try {
+            // Verificamos si ya existe el producto
+            const exists = await pool.request()
+                .input('c', sql.VarChar, Articulo)
+                .query('SELECT articulo FROM prods WHERE articulo = @c');
+            
+            let query;
+            if (exists.recordset.length > 0) {
+                // Si existe, actualizamos
+                query = 'UPDATE prods SET descrip = @d, existencia = @s, precio1 = @p WHERE articulo = @c';
+            } else {
+                // Si no existe, insertamos (Producto Nuevo)
+                query = 'INSERT INTO prods (articulo, descrip, existencia, precio1) VALUES (@c, @d, @s, @p)';
+            }
+
+            await pool.request()
+                .input('c', sql.VarChar, Articulo)
+                .input('d', sql.VarChar, Descripcion)
+                .input('s', sql.Float, Stock)
+                .input('p', sql.Float, Precio)
+                .query(query);
+            
+            console.log(`💾 GUARDADO: [${Articulo}] ${Descripcion}`);
+            res.send("OK");
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // 4. ELIMINAR (DELETE)
     app.delete('/productos/:id', async (req, res) => {
         const { id } = req.params;
         try {
@@ -142,11 +198,14 @@ function iniciarServidor(pool) {
                 .query('DELETE FROM prods WHERE articulo = @codigo');
             console.log(`🔥 ALERTA: Producto [${id}] ELIMINADO.`);
             res.send("Eliminado");
-        } catch (err) { res.status(500).send("Error"); }
+        } catch (err) { 
+            res.status(500).send("Error"); 
+        }
     });
 
     app.listen(3000, '0.0.0.0', () => {
-        console.log("\n🚀 INTERMEDIO LISTO EN PUERTO 3000\n");
+        console.log("\n🚀 INTERMEDIO LISTO EN PUERTO 3000");
+        console.log("Esperando conexiones desde la App Android...\n");
     });
 }
 
