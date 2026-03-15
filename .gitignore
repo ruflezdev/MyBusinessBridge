@@ -1,4 +1,7 @@
-node_modules/
+node_modules
 config.json
-MyBusinessBridge.exe
-.pkg-cache/
+*.exe
+.git
+*.log
+*.tmp
+package-lock.json

@@ -7,21 +7,16 @@
     "assets": [
       "node_modules/tedious/lib/**/*.js",
       "node_modules/mssql/lib/**/*.js"
-    ],
-    "scripts": [
-      "node_modules/tedious/lib/connection.js",
-      "node_modules/tedious/lib/token/token-stream-parser.js"
     ]
   },
   "scripts": {
     "start": "node index.js",
-    "build": "pkg . --targets node18-win-x64 --compress GZip --output MyBusinessBridge.exe"
+    "build": "pkg . --targets node18-win-x64 --output MyBusinessBridge.exe"
   },
   "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "mssql": "^12.2.0",
-    "mysql": "^2.18.1",
-    "tedious": "^19.2.1"
+    "cors": "^2.8.5",
+    "express": "^4.18.2", 
+    "mssql": "^11.0.1",
+    "tedious": "^18.2.0"
   }
 }
