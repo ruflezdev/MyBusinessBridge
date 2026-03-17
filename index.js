@@ -120,56 +120,90 @@ function iniciarServidor(pool) {
 
 function obtenerIPLocal() {
   const interfaces = os.networkInterfaces();
-  for (let name in interfaces) {
-    for (let details of interfaces[name]) {
-      if (details.family === "IPv4" && !details.internal)
-        return details.address;
+  const localIPs = [];
+  for (const name in interfaces) {
+    for (const details of interfaces[name]) {
+      if (details.family === "IPv4" && !details.internal) {
+        localIPs.push(details.address);
+      }
     }
   }
-  return "localhost";
+
+  if (localIPs.length > 0) {
+    if (localIPs.length > 1) {
+      console.log(
+        "\n⚠️  Múltiples IPs locales de red detectadas. Usando la primera:",
+      );
+      localIPs.forEach((ip, index) => console.log(`   ${index + 1}. ${ip}`));
+    }
+    return localIPs[0];
+  } else {
+    console.log(
+      "\n⚠️  No se encontró una IP IPv4 de red externa. Usando 'localhost'.",
+    );
+    return "localhost";
+  }
 }
 
 async function probarYGuardar(config) {
   try {
     const pool = await sql.connect(config);
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    console.log("✅ Conexión con MyBusiness POS establecida.");
+    console.log("\n✅ Conexión con MyBusiness POS establecida.");
     iniciarServidor(pool);
   } catch (err) {
-    console.log("❌ Error:", err.message);
+    console.log(`\n❌ Error al conectar: ${err.message}`);
+    console.log(
+      "Por favor, verifica los datos de conexión y que el servidor SQL esté en ejecución.",
+    );
     pedirDatos();
   }
 }
 
 function pedirDatos() {
   console.log("\n--- CONFIGURACIÓN SQL ---");
-  console.log("1. Automática (intenta conectar a la IP local)");
   console.log(
-    "2. Manual (ingresar IP, puerto, base de datos, usuario y contraseña)",
+    "1. Automática (intenta conectar a la IP local con usuario 'sa', clave '12345678', DB 'MyBusiness20', puerto 53100)",
   );
-  rl.question("Opción: ", (op) => {
+  console.log(
+    "2. Manual (ingresar todos los datos: IP, puerto, base de datos, usuario y contraseña)",
+  );
+  rl.question("Opción (1 o 2): ", (op) => {
     if (op === "1") {
-      probarYGuardar({
+      console.log("\nIntentando conexión automática...");
+      const config = {
         user: "sa",
         password: "12345678",
         server: obtenerIPLocal(),
         database: "MyBusiness20",
         port: 53100,
         options: { encrypt: false, trustServerCertificate: true },
-      });
-    } else {
-      rl.question("IP Servidor: ", (h) => {
-        rl.question("Clave: ", (p) => {
-          probarYGuardar({
-            user: "sa",
-            password: p,
-            server: h,
-            database: "MyBusiness20",
-            port: 53100,
-            options: { encrypt: false, trustServerCertificate: true },
+      };
+      probarYGuardar(config);
+    } else if (op === "2") {
+      rl.question("IP del Servidor SQL (ej. localhost): ", (server) => {
+        rl.question("Puerto (default: 53100): ", (port) => {
+          rl.question("Nombre de la Base de Datos (default: MyBusiness20): ", (database) => {
+            rl.question("Usuario (default: sa): ", (user) => {
+              rl.question("Contraseña: ", (password) => {
+                const finalConfig = {
+                  server: server || 'localhost',
+                  port: parseInt(port) || 53100,
+                  database: database || 'MyBusiness20',
+                  user: user || 'sa',
+                  password: password, // La contraseña es obligatoria
+                  options: { encrypt: false, trustServerCertificate: true },
+                };
+                console.log(`\nIntentando conexión con la configuración proporcionada...`);
+                probarYGuardar(finalConfig);
+              });
+            });
           });
         });
       });
+    } else {
+      console.log("Opción no válida. Por favor, ingrese '1' o '2'.");
+      pedirDatos(); // Volver a pedir datos si la opción no es válida
     }
   });
 }
