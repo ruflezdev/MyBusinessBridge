@@ -6,7 +6,9 @@ if (typeof AbortSignal !== "undefined" && !AbortSignal.any) {
         controller.abort(signal.reason);
         return controller.signal;
       }
-      signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+      signal.addEventListener("abort", () => controller.abort(signal.reason), {
+        once: true,
+      });
     }
     return controller.signal;
   };
@@ -24,17 +26,18 @@ app.use(cors());
 app.use(express.json());
 
 const CONFIG_FILE = "./config.json";
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
 function iniciarServidor(pool) {
-  
-  // NUEVO: Búsqueda general (coincidencias parciales por nombre o código)
   app.get("/productos/buscar", async (req, res) => {
     const busqueda = req.query.q;
     try {
-      const result = await pool.request()
-        .input("q", sql.VarChar, `%${busqueda}%`)
-        .query(`
+      const result = await pool
+        .request()
+        .input("q", sql.VarChar, `%${busqueda}%`).query(`
           SELECT TOP 30
                  articulo AS CodigoBarras, 
                  descrip AS Producto, 
@@ -44,19 +47,19 @@ function iniciarServidor(pool) {
           WHERE articulo LIKE @q OR descrip LIKE @q
           ORDER BY descrip ASC
         `);
-      
+
       res.json(result.recordset);
-    } catch (err) { 
-      res.status(500).json({ error: err.message }); 
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
   // CONSULTAR: Busca por Código de Barras exacto
   app.get("/producto/:id", async (req, res) => {
     try {
-      const result = await pool.request()
-        .input("id", sql.VarChar, req.params.id)
-        .query(`
+      const result = await pool
+        .request()
+        .input("id", sql.VarChar, req.params.id).query(`
           SELECT articulo AS CodigoBarras, 
                  descrip AS Producto, 
                  precio1 AS PrecioPublico, 
@@ -64,23 +67,23 @@ function iniciarServidor(pool) {
           FROM prods 
           WHERE articulo = @id
         `);
-      
+
       if (result.recordset.length > 0) {
         res.json(result.recordset[0]);
       } else {
         res.status(404).json({ message: "No encontrado" });
       }
-    } catch (err) { 
-      res.status(500).json({ error: err.message }); 
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // GUARDAR: Alta o Actualización
   app.post("/producto/actualizar", async (req, res) => {
     const { CodigoBarras, Producto, PrecioPublico, Existencias } = req.body;
 
     try {
-      const exists = await pool.request()
+      const exists = await pool
+        .request()
         .input("c", sql.VarChar, CodigoBarras)
         .query("SELECT articulo FROM prods WHERE articulo=@c");
 
@@ -94,7 +97,8 @@ function iniciarServidor(pool) {
                  VALUES (@c, @d, @p, 0, 'SYS', @e, 'SYS', 'SYS', 'PZA', 1, 1)`;
       }
 
-      await pool.request()
+      await pool
+        .request()
         .input("c", sql.VarChar, CodigoBarras)
         .input("d", sql.VarChar, Producto)
         .input("p", sql.Float, PrecioPublico)
@@ -103,8 +107,8 @@ function iniciarServidor(pool) {
 
       console.log(`✅ Registro exitoso: ${CodigoBarras} - ${Producto}`);
       res.send("OK");
-    } catch (err) { 
-      res.status(500).json({ error: err.message }); 
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -114,14 +118,12 @@ function iniciarServidor(pool) {
   });
 }
 
-// =====================================================
-//          GESTIÓN DE RED Y CONFIGURACIÓN
-// =====================================================
 function obtenerIPLocal() {
   const interfaces = os.networkInterfaces();
   for (let name in interfaces) {
     for (let details of interfaces[name]) {
-      if (details.family === "IPv4" && !details.internal) return details.address;
+      if (details.family === "IPv4" && !details.internal)
+        return details.address;
     }
   }
   return "localhost";
@@ -142,21 +144,29 @@ async function probarYGuardar(config) {
 function pedirDatos() {
   console.log("\n--- CONFIGURACIÓN SQL ---");
   console.log("1. Automática (intenta conectar a la IP local)");
-  console.log("2. Manual (ingresar IP, puerto, base de datos, usuario y contraseña)");
+  console.log(
+    "2. Manual (ingresar IP, puerto, base de datos, usuario y contraseña)",
+  );
   rl.question("Opción: ", (op) => {
     if (op === "1") {
       probarYGuardar({
-        user: "sa", password: "12345678", server: obtenerIPLocal(),
-        database: "MyBusiness20", port: 53100,
-        options: { encrypt: false, trustServerCertificate: true }
+        user: "sa",
+        password: "12345678",
+        server: obtenerIPLocal(),
+        database: "MyBusiness20",
+        port: 53100,
+        options: { encrypt: false, trustServerCertificate: true },
       });
     } else {
       rl.question("IP Servidor: ", (h) => {
         rl.question("Clave: ", (p) => {
           probarYGuardar({
-            user: "sa", password: p, server: h,
-            database: "MyBusiness20", port: 53100,
-            options: { encrypt: false, trustServerCertificate: true }
+            user: "sa",
+            password: p,
+            server: h,
+            database: "MyBusiness20",
+            port: 53100,
+            options: { encrypt: false, trustServerCertificate: true },
           });
         });
       });
@@ -165,8 +175,10 @@ function pedirDatos() {
 }
 
 if (fs.existsSync(CONFIG_FILE)) {
-  sql.connect(JSON.parse(fs.readFileSync(CONFIG_FILE)))
-    .then(iniciarServidor).catch(pedirDatos);
+  sql
+    .connect(JSON.parse(fs.readFileSync(CONFIG_FILE)))
+    .then(iniciarServidor)
+    .catch(pedirDatos);
 } else {
   pedirDatos();
 }
