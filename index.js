@@ -42,7 +42,11 @@ function iniciarServidor(pool) {
                  articulo AS CodigoBarras, 
                  descrip AS Producto, 
                  precio1 AS PrecioPublico, 
-                 existencia AS Existencias
+                 existencia AS Existencias,
+                 linea AS Linea,
+                 unidad AS Unidad,
+                 granel AS Granel,
+                 speso AS Speso
           FROM prods 
           WHERE articulo LIKE @q OR descrip LIKE @q
           ORDER BY descrip ASC
@@ -63,7 +67,11 @@ function iniciarServidor(pool) {
           SELECT articulo AS CodigoBarras, 
                  descrip AS Producto, 
                  precio1 AS PrecioPublico, 
-                 existencia AS Existencias
+                 existencia AS Existencias,
+                 linea AS Linea,
+                 unidad AS Unidad,
+                 granel AS Granel,
+                 speso AS Speso
           FROM prods 
           WHERE articulo = @id
         `);
@@ -79,7 +87,7 @@ function iniciarServidor(pool) {
   });
 
   app.post("/producto/actualizar", async (req, res) => {
-    const { CodigoBarras, Producto, PrecioPublico, Existencias } = req.body;
+    const { CodigoBarras, Producto, PrecioPublico, Existencias, Linea, Unidad, Granel, Speso } = req.body;
 
     try {
       const exists = await pool
@@ -87,26 +95,43 @@ function iniciarServidor(pool) {
         .input("c", sql.VarChar, CodigoBarras)
         .query("SELECT articulo FROM prods WHERE articulo=@c");
 
-      let query;
-      if (exists.recordset.length > 0) {
-        query = `UPDATE prods SET descrip=@d, precio1=@p, costo_u=0, 
-                 impuesto='SYS', existencia=@e WHERE articulo=@c`;
-      } else {
-        query = `INSERT INTO prods (articulo, descrip, precio1, costo_u, impuesto, 
-                 existencia, linea, marca, unidad, paraventa, invent) 
-                 VALUES (@c, @d, @p, 0, 'SYS', @e, 'SYS', 'SYS', 'PZA', 1, 1)`;
+      const isUpdate = exists.recordset.length > 0;
+
+      const executeUpsert = async (lineaToUse) => {
+        const query = isUpdate
+          ? `UPDATE prods SET descrip=@d, precio1=@p, costo_u=0, 
+               impuesto='SYS', existencia=@e, linea=@l, unidad=@u, granel=@g, speso=@s WHERE articulo=@c`
+          : `INSERT INTO prods (articulo, descrip, precio1, costo_u, impuesto, 
+               existencia, linea, marca, unidad, paraventa, invent, granel, speso) 
+               VALUES (@c, @d, @p, 0, 'SYS', @e, @l, 'SYS', @u, 1, 1, @g, @s)`;
+
+        return pool
+          .request()
+          .input("c", sql.VarChar, CodigoBarras)
+          .input("d", sql.VarChar, Producto)
+          .input("p", sql.Float, PrecioPublico)
+          .input("e", sql.Float, Existencias || 0)
+          .input("l", sql.VarChar, lineaToUse || 'SYS')
+          .input("u", sql.VarChar, Unidad || 'PZA')
+          .input("g", sql.Int, [true, 1, '1', 'true'].includes(Granel) ? 1 : 0)
+          .input("s", sql.Int, [true, 1, '1', 'true'].includes(Speso) ? 1 : 0)
+          .query(query);
+      };
+
+      try {
+        await executeUpsert(Linea);
+        console.log(`✅ Registro exitoso: ${CodigoBarras} - ${Producto}`);
+        res.send("OK");
+      } catch (dbErr) {
+        if (Linea && Linea.toUpperCase() !== 'SYS') {
+          console.log(`⚠️  Error con la línea '${Linea}', reintentando con 'SYS'. Detalle: ${dbErr.message}`);
+          await executeUpsert('SYS');
+          console.log(`✅ Registro exitoso (Fallback Línea SYS): ${CodigoBarras} - ${Producto}`);
+          res.send("OK");
+        } else {
+          throw dbErr; // Si ya era 'SYS' o es un error de conexión diferente, falla la petición normalmente
+        }
       }
-
-      await pool
-        .request()
-        .input("c", sql.VarChar, CodigoBarras)
-        .input("d", sql.VarChar, Producto)
-        .input("p", sql.Float, PrecioPublico)
-        .input("e", sql.Float, Existencias || 0)
-        .query(query);
-
-      console.log(`✅ Registro exitoso: ${CodigoBarras} - ${Producto}`);
-      res.send("OK");
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
